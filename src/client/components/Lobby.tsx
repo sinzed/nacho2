@@ -1,0 +1,138 @@
+import React, { useState, useEffect } from 'react';
+import { Room } from 'colyseus.js';
+import { GameState } from '../../rooms/schema/GameState';
+
+interface LobbyProps {
+  onJoinRoom: (roomCode: string, name: string) => void;
+  onCreateRoom: (name: string) => void;
+  room?: Room<GameState>;
+  gameState?: GameState;
+  sessionId?: string;
+}
+
+const Lobby: React.FC<LobbyProps> = ({ onJoinRoom, onCreateRoom, room, gameState, sessionId }) => {
+  const [name, setName] = useState('');
+  const [roomCode, setRoomCode] = useState('');
+
+  if (room && gameState) {
+    const players = gameState.players ? Array.from(gameState.players.values()) : [];
+    const isHost = players.length > 0 && players[0].sessionId === sessionId;
+
+    // Debug: Log state changes
+    useEffect(() => {
+      console.log('Lobby state update - Players:', players.length, 'Room Code:', gameState.roomCode);
+      console.log('Player list:', players.map(p => ({ name: p.name, id: p.sessionId })));
+    }, [players.length, gameState.roomCode, players]);
+
+    return (
+      <div className="lobby-container">
+        <div className="lobby-card">
+          <h1>Nucho's Enigma</h1>
+          <div className="room-info">
+            <h2>Room Code: <span className="room-code">{gameState.roomCode || 'Loading...'}</span></h2>
+            <p>Share this code with other players!</p>
+          </div>
+          
+          <div className="players-list">
+            <h3>Players ({players.length}/10)</h3>
+            {players.length === 0 ? (
+              <p className="waiting-text">Waiting for players to join...</p>
+            ) : (
+              <ul>
+                {players.map((player) => (
+                  <li key={player.sessionId}>
+                    {player.name} {player.sessionId === sessionId && '(You)'}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+
+          {isHost && (
+            <button
+              className="btn btn-primary"
+              onClick={() => room.send('startGame')}
+              disabled={players.length < 5 || players.length > 10}
+            >
+              Start Game ({players.length} players)
+            </button>
+          )}
+
+          {!isHost && (
+            <p className="waiting-text">Waiting for host to start the game...</p>
+          )}
+
+          {players.length < 5 && (
+            <p className="warning-text">Need at least 5 players to start</p>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="lobby-container">
+      <div className="lobby-card">
+        <h1>Nucho's Enigma</h1>
+        <p className="subtitle">A multiplayer social deduction trivia game</p>
+        
+        <div className="input-group">
+          <input
+            type="text"
+            placeholder="Enter your name"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            maxLength={20}
+          />
+        </div>
+
+        <div className="lobby-actions">
+          <div className="action-section">
+            <h3>Create Room</h3>
+            <button
+              className="btn btn-primary"
+              onClick={() => {
+                if (name.trim()) {
+                  onCreateRoom(name.trim());
+                } else {
+                  alert('Please enter your name');
+                }
+              }}
+            >
+              Create New Game
+            </button>
+          </div>
+
+          <div className="divider">OR</div>
+
+          <div className="action-section">
+            <h3>Join Room</h3>
+            <input
+              type="text"
+              placeholder="Enter room code"
+              value={roomCode}
+              onChange={(e) => setRoomCode(e.target.value.toUpperCase())}
+              maxLength={5}
+              style={{ marginBottom: '10px' }}
+            />
+            <button
+              className="btn btn-secondary"
+              onClick={() => {
+                if (name.trim() && roomCode.trim()) {
+                  onJoinRoom(roomCode.trim().toUpperCase(), name.trim());
+                } else {
+                  alert('Please enter your name and room code');
+                }
+              }}
+            >
+              Join Game
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default Lobby;
+
