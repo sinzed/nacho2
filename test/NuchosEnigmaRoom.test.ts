@@ -34,6 +34,43 @@ describe("Nucho's Enigma Room Tests", () => {
     expect(creatorPlayer.sessionId).toBe(client1.sessionId);
   });
 
+  test("should show creator to first player who joins", async () => {
+    const room = await colyseus.createRoom<GameState>("nuchos_enigma", { name: "CreatorPlayer" });
+    const creator = await colyseus.connectTo(room, { name: "CreatorPlayer" });
+
+    await room.waitForNextPatch();
+    expect(creator.state.players.size).toBe(1);
+    
+    // Debug: Log creator's view
+    console.log("\n[DEBUG] Creator's view after joining:");
+    console.log("  Players:", Array.from(creator.state.players.values()).map(p => `${p.name} (${p.sessionId})`));
+
+    // First non-creator player joins
+    const firstPlayer = await colyseus.connectTo(room, { name: "FirstPlayer" });
+
+    await room.waitForNextPatch();
+    await new Promise(resolve => setTimeout(resolve, 200));
+    await room.waitForNextPatch();
+
+    // Debug: Log first player's view
+    console.log("\n[DEBUG] First player's view after joining:");
+    console.log("  Players:", Array.from(firstPlayer.state.players.values()).map(p => `${p.name} (${p.sessionId})`));
+    console.log("  Room state players:", Array.from(room.state.players.values()).map(p => `${p.name} (${p.sessionId})`));
+
+    // First player should see both the creator and themselves
+    expect(firstPlayer.state.players.size).toBe(2);
+    const firstPlayerNames = Array.from(firstPlayer.state.players.values()).map(p => p.name);
+    expect(firstPlayerNames).toContain("CreatorPlayer");
+    expect(firstPlayerNames).toContain("FirstPlayer");
+    
+    // Verify the creator is specifically in the list
+    const creatorInList = Array.from(firstPlayer.state.players.values()).find(p => p.name === "CreatorPlayer");
+    expect(creatorInList).toBeDefined();
+    expect(creatorInList?.sessionId).toBe(creator.sessionId);
+    
+    console.log("\n[DEBUG] Test passed - Creator is visible to first player!");
+  });
+
   test("should show all players to second player when they join", async () => {
     const room = await colyseus.createRoom<GameState>("nuchos_enigma", { name: "CreatorPlayer" });
     const client1 = await colyseus.connectTo(room, { name: "CreatorPlayer" });

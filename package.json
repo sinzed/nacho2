@@ -16,6 +16,11 @@
     "test": "jest",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
+    "test:debug": "node --inspect-brk node_modules/.bin/jest --runInBand",
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui",
+    "test:e2e:headed": "playwright test --headed",
+    "test:e2e:debug": "playwright test --debug",
     "dev": "concurrently \"npm run start\" \"npm run start:client\""
   },
   "author": "",
@@ -27,6 +32,7 @@
   "devDependencies": {
     "@colyseus/loadtest": "^0.16.0",
     "@colyseus/testing": "^0.16.0",
+    "@playwright/test": "^1.56.1",
     "@types/express": "^4.17.1",
     "@types/jest": "^30.0.0",
     "@types/mocha": "^10.0.1",
@@ -36,6 +42,7 @@
     "concurrently": "^8.2.2",
     "jest": "^30.2.0",
     "mocha": "^10.2.0",
+    "playwright": "^1.56.1",
     "rimraf": "^5.0.0",
     "ts-jest": "^29.4.5",
     "tsx": "^4.10.2",

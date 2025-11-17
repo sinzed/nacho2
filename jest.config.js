@@ -14,5 +14,8 @@ module.exports = {
   ],
   testTimeout: 15000,
   verbose: true,
+  // Show console.log output during tests
+  silent: false,
+  // Don't hide console output
+  setupFilesAfterEnv: [],
 };
-
