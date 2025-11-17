@@ -8,21 +8,29 @@ interface LobbyProps {
   room?: Room<GameState>;
   gameState?: GameState;
   sessionId?: string;
+  updateTrigger?: number; // Add update trigger prop
 }
 
-const Lobby: React.FC<LobbyProps> = ({ onJoinRoom, onCreateRoom, room, gameState, sessionId }) => {
+const Lobby: React.FC<LobbyProps> = ({ onJoinRoom, onCreateRoom, room, gameState, sessionId, updateTrigger }) => {
   const [name, setName] = useState('');
   const [roomCode, setRoomCode] = useState('');
 
   if (room && gameState) {
-    const players = gameState.players ? Array.from(gameState.players.values()) : [];
+    // Convert MapSchema to array, handling undefined case
+    const playersMap = gameState.players;
+    const players = playersMap ? Array.from(playersMap.values()) : [];
     const isHost = players.length > 0 && players[0].sessionId === sessionId;
 
     // Debug: Log state changes
     useEffect(() => {
-      console.log('Lobby state update - Players:', players.length, 'Room Code:', gameState.roomCode);
-      console.log('Player list:', players.map(p => ({ name: p.name, id: p.sessionId })));
-    }, [players.length, gameState.roomCode, players]);
+      console.log('Lobby render - Players:', players.length, 'Room Code:', gameState.roomCode);
+      if (players.length > 0) {
+        console.log('Player list:', players.map(p => ({ name: p.name, id: p.sessionId })));
+      }
+      if (playersMap) {
+        console.log('Players MapSchema size:', playersMap.size);
+      }
+    }, [players.length, gameState.roomCode, players, playersMap, updateTrigger]);
 
     return (
       <div className="lobby-container">

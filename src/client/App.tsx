@@ -20,26 +20,58 @@ function App() {
   const [updateTrigger, setUpdateTrigger] = useState(0);
 
   useEffect(() => {
+    let pollInterval: NodeJS.Timeout | null = null;
+    
     if (room) {
       // Set initial state immediately
       setGameState(room.state);
       
+      // Polling mechanism as fallback to ensure UI updates
+      let lastPlayerCount = room.state?.players?.size || 0;
+      pollInterval = setInterval(() => {
+        if (room.state && room.state.players) {
+          const currentCount = room.state.players.size;
+          if (currentCount !== lastPlayerCount) {
+            console.log('Player count changed via polling:', lastPlayerCount, '->', currentCount);
+            lastPlayerCount = currentCount;
+            setGameState(room.state);
+            setUpdateTrigger(prev => prev + 1);
+          }
+        }
+      }, 500); // Check every 500ms
+      
       // Listen for state changes
       room.onStateChange((state) => {
-        console.log('State changed:', state.phase, 'Players:', state.players?.size || 0);
+        const playerCount = state.players?.size || 0;
+        console.log('State changed:', state.phase, 'Players:', playerCount);
         setGameState(state);
+        setUpdateTrigger(prev => prev + 1); // Always trigger update on state change
         
         // Re-setup MapSchema listeners if players map is available
-        if (state.players && !state.players.onAdd) {
+        if (state.players) {
+          // Remove old listeners if they exist
+          if (state.players.onAdd) {
+            delete state.players.onAdd;
+          }
+          if (state.players.onRemove) {
+            delete state.players.onRemove;
+          }
+          
+          // Set up new listeners
           state.players.onAdd = (player, key) => {
-            console.log('Player added to MapSchema:', player.name, key);
-            setGameState(room.state);
-            setUpdateTrigger(prev => prev + 1);
+            console.log('MapSchema onAdd triggered - Player:', player.name, 'Key:', key);
+            // Use a small delay to ensure state is fully updated
+            setTimeout(() => {
+              setGameState(room.state);
+              setUpdateTrigger(prev => prev + 1);
+            }, 10);
           };
           state.players.onRemove = (player, key) => {
-            console.log('Player removed from MapSchema:', key);
-            setGameState(room.state);
-            setUpdateTrigger(prev => prev + 1);
+            console.log('MapSchema onRemove triggered - Key:', key);
+            setTimeout(() => {
+              setGameState(room.state);
+              setUpdateTrigger(prev => prev + 1);
+            }, 10);
           };
         }
       });
@@ -67,10 +99,14 @@ function App() {
 
       room.onMessage('playerJoined', (message) => {
         console.log('Player joined message:', message);
-        // Force state update when player joins
-        if (room.state) {
-          setGameState(room.state);
-        }
+        // Force state update when player joins - use setTimeout to ensure state is updated
+        setTimeout(() => {
+          if (room.state) {
+            console.log('Forcing state update after playerJoined, players:', room.state.players?.size);
+            setGameState(room.state);
+            setUpdateTrigger(prev => prev + 1);
+          }
+        }, 50);
       });
 
       room.onMessage('questionAdvanced', (message) => {
@@ -90,6 +126,13 @@ function App() {
         setGameState(null);
       });
     }
+    
+    // Cleanup polling interval
+    return () => {
+      if (pollInterval) {
+        clearInterval(pollInterval);
+      }
+    };
   }, [room]);
 
   const joinRoom = async (roomCode: string, name: string) => {
@@ -141,16 +184,16 @@ function App() {
   };
 
   if (!room || !gameState) {
-    return <Lobby onJoinRoom={joinRoom} onCreateRoom={createRoom} />;
+    return <Lobby onJoinRoom={joinRoom} onCreateRoom={createRoom} updateTrigger={updateTrigger} />;
   }
 
-  const currentPlayer = Array.from(gameState.players.values()).find(
+  const currentPlayer = gameState.players ? Array.from(gameState.players.values()).find(
     (p) => p.sessionId === sessionId
-  );
+  ) : undefined;
 
   switch (gameState.phase) {
     case 'lobby':
-      return <Lobby onJoinRoom={joinRoom} onCreateRoom={createRoom} room={room} gameState={gameState} sessionId={sessionId} />;
+      return <Lobby onJoinRoom={joinRoom} onCreateRoom={createRoom} room={room} gameState={gameState} sessionId={sessionId} updateTrigger={updateTrigger} />;
     case 'questionnaire':
       return (
         <QuestionnairePhase
