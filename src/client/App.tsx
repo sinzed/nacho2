@@ -160,22 +160,39 @@ function App() {
 
   const joinRoom = async (roomCode: string, name: string) => {
     try {
-      // Try to join existing room first
+      // Try to join existing room by room code
+      // Colyseus filterBy requires the filter to match metadata
       let newRoom;
       try {
+        // Use join with filter options - roomCode should match metadata
         newRoom = await client.join<GameState>('nuchos_enigma', {
-          roomCode,
+          roomCode: roomCode.trim().toUpperCase(),
           name,
+        }, {
+          // Retry a few times in case room is still being created
+          retry: true,
+          maxRetries: 3,
         });
         console.log('Joined existing room:', newRoom.roomId, 'Code:', newRoom.state.roomCode);
-      } catch (joinError) {
-        console.log('Join failed, trying joinOrCreate:', joinError);
-        // If join fails, try joinOrCreate
-        newRoom = await client.joinOrCreate<GameState>('nuchos_enigma', {
-          roomCode,
-          name,
-        });
-        console.log('Created/joined room:', newRoom.roomId, 'Code:', newRoom.state.roomCode);
+      } catch (joinError: any) {
+        console.log('Join failed, trying joinOrCreate:', joinError?.message || joinError);
+        // If join fails, wait a bit and try once more (room might still be registering)
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        try {
+          newRoom = await client.join<GameState>('nuchos_enigma', {
+            roomCode: roomCode.trim().toUpperCase(),
+            name,
+          });
+          console.log('Joined existing room on retry:', newRoom.roomId, 'Code:', newRoom.state.roomCode);
+        } catch (retryError) {
+          // Last resort: joinOrCreate (but this creates a new room if none found)
+          console.log('Retry also failed, using joinOrCreate:', retryError);
+          newRoom = await client.joinOrCreate<GameState>('nuchos_enigma', {
+            roomCode: roomCode.trim().toUpperCase(),
+            name,
+          });
+          console.log('Created/joined room:', newRoom.roomId, 'Code:', newRoom.state.roomCode);
+        }
       }
       console.log('Room state players:', newRoom.state?.players?.size || 0);
       if (newRoom.state?.players) {

@@ -55,18 +55,20 @@ test.describe('Lobby E2E Tests', () => {
       await creatorNameInput.fill('CreatorPlayer');
       await creatorPage.locator('button:has-text("Create New Game")').click();
       
-      // Wait for room code
+      // Wait for room code to appear and be stable
       await expect(creatorPage.locator('.room-code')).toBeVisible({ timeout: 10000 });
+      await creatorPage.waitForTimeout(1000); // Wait for room to be fully created
+      
       const roomCode = await creatorPage.locator('.room-code').textContent();
       console.log(`[DEBUG] Room code created: ${roomCode}`);
       expect(roomCode).toBeTruthy();
+      expect(roomCode?.trim().length).toBeGreaterThan(0);
       
       // Verify creator sees themselves
-      await expect(creatorPage.locator('text=CreatorPlayer')).toBeVisible();
+      await expect(creatorPage.locator('text=CreatorPlayer')).toBeVisible({ timeout: 5000 });
       
-      // Log creator's player list
-      const creatorPlayerList = await creatorPage.locator('.players-list ul').textContent();
-      console.log(`[DEBUG] Creator sees players: ${creatorPlayerList}`);
+      // Wait a bit more for room to be fully registered in the server
+      await creatorPage.waitForTimeout(2000);
       
       // First player joins the room
       await joinerPage.goto('/');
@@ -76,18 +78,36 @@ test.describe('Lobby E2E Tests', () => {
       await joinerNameInput.fill('FirstPlayer');
       
       const roomCodeInput = joinerPage.locator('input[placeholder="Enter room code"]');
-      await roomCodeInput.fill(roomCode || '');
+      await roomCodeInput.fill(roomCode?.trim() || '');
       
       await joinerPage.locator('button:has-text("Join Game")').click();
       
-      // Wait for joiner to see the lobby
-      await expect(joinerPage.locator('.room-code')).toBeVisible({ timeout: 10000 });
+      // Wait for joiner to see the lobby (room code should match)
+      await expect(joinerPage.locator('.room-code')).toBeVisible({ timeout: 15000 });
       
-      // Wait a bit for state to sync
-      await joinerPage.waitForTimeout(500);
+      // Verify the room code matches
+      const joinerRoomCode = await joinerPage.locator('.room-code').textContent();
+      expect(joinerRoomCode?.trim()).toBe(roomCode?.trim());
+      
+      // Wait for state to sync - check for player list to appear
+      await expect(joinerPage.locator('.players-list')).toBeVisible({ timeout: 10000 });
+      
+      // Wait for both players to appear - retry with longer timeout
+      let attempts = 0;
+      let foundCreator = false;
+      while (attempts < 10 && !foundCreator) {
+        await joinerPage.waitForTimeout(500);
+        const playerListText = await joinerPage.locator('.players-list ul').textContent();
+        console.log(`[DEBUG] Attempt ${attempts + 1} - Joiner sees players: ${playerListText}`);
+        if (playerListText?.includes('CreatorPlayer') && playerListText?.includes('FirstPlayer')) {
+          foundCreator = true;
+          break;
+        }
+        attempts++;
+      }
       
       // Verify joiner sees the creator in the player list
-      await expect(joinerPage.locator('text=CreatorPlayer')).toBeVisible({ timeout: 5000 });
+      await expect(joinerPage.locator('text=CreatorPlayer')).toBeVisible({ timeout: 10000 });
       await expect(joinerPage.locator('text=FirstPlayer')).toBeVisible();
       
       // Verify both players are in the list
@@ -96,16 +116,18 @@ test.describe('Lobby E2E Tests', () => {
       
       // Check that both names appear
       const playerListText = await joinerPlayerList.textContent();
-      console.log(`[DEBUG] Joiner sees players: ${playerListText}`);
+      console.log(`[DEBUG] Final - Joiner sees players: ${playerListText}`);
       expect(playerListText).toContain('CreatorPlayer');
       expect(playerListText).toContain('FirstPlayer');
       
       // Verify player count is 2
-      await expect(joinerPage.locator('text=Players (2/10)')).toBeVisible();
+      await expect(joinerPage.locator('text=Players (2/10)')).toBeVisible({ timeout: 5000 });
       
-      // Take screenshot for debugging
-      await joinerPage.screenshot({ path: 'test-results/joiner-view.png', fullPage: true });
-      await creatorPage.screenshot({ path: 'test-results/creator-view.png', fullPage: true });
+      // Also verify creator still sees both players
+      await expect(creatorPage.locator('text=Players (2/10)')).toBeVisible({ timeout: 5000 });
+      const creatorPlayerList = await creatorPage.locator('.players-list ul').textContent();
+      expect(creatorPlayerList).toContain('CreatorPlayer');
+      expect(creatorPlayerList).toContain('FirstPlayer');
       
     } finally {
       await creatorContext.close();
@@ -132,30 +154,49 @@ test.describe('Lobby E2E Tests', () => {
       await pages[0].locator('input[placeholder="Enter your name"]').fill('Player1');
       await pages[0].locator('button:has-text("Create New Game")').click();
       await expect(pages[0].locator('.room-code')).toBeVisible({ timeout: 10000 });
+      await pages[0].waitForTimeout(2000); // Wait for room to be fully created
       const roomCode = await pages[0].locator('.room-code').textContent();
+      expect(roomCode?.trim().length).toBeGreaterThan(0);
       
       // Player 2 joins
       await pages[1].goto('/');
       await pages[1].locator('input[placeholder="Enter your name"]').fill('Player2');
-      await pages[1].locator('input[placeholder="Enter room code"]').fill(roomCode || '');
+      await pages[1].locator('input[placeholder="Enter room code"]').fill(roomCode?.trim() || '');
       await pages[1].locator('button:has-text("Join Game")').click();
-      await expect(pages[1].locator('.room-code')).toBeVisible({ timeout: 10000 });
+      await expect(pages[1].locator('.room-code')).toBeVisible({ timeout: 15000 });
+      await pages[1].waitForTimeout(1000);
       
       // Player 3 joins
       await pages[2].goto('/');
       await pages[2].locator('input[placeholder="Enter your name"]').fill('Player3');
-      await pages[2].locator('input[placeholder="Enter room code"]').fill(roomCode || '');
+      await pages[2].locator('input[placeholder="Enter room code"]').fill(roomCode?.trim() || '');
       await pages[2].locator('button:has-text("Join Game")').click();
-      await expect(pages[2].locator('.room-code')).toBeVisible({ timeout: 10000 });
-      
-      // Wait a bit for all players to sync
-      await pages[0].waitForTimeout(1000);
-      await pages[1].waitForTimeout(1000);
+      await expect(pages[2].locator('.room-code')).toBeVisible({ timeout: 15000 });
       await pages[2].waitForTimeout(1000);
       
+      // Wait for all players to sync - retry until all see 3 players
+      for (let attempt = 0; attempt < 15; attempt++) {
+        await Promise.all([
+          pages[0].waitForTimeout(500),
+          pages[1].waitForTimeout(500),
+          pages[2].waitForTimeout(500),
+        ]);
+        
+        let allReady = true;
+        for (const page of pages) {
+          const playerCountText = await page.locator('.players-list h3').textContent();
+          if (!playerCountText?.includes('3')) {
+            allReady = false;
+            break;
+          }
+        }
+        if (allReady) break;
+      }
+      
       // Verify all players see all 3 players
-      for (const page of pages) {
-        await expect(page.locator('text=Players (3/10)')).toBeVisible({ timeout: 5000 });
+      for (let i = 0; i < pages.length; i++) {
+        const page = pages[i];
+        await expect(page.locator('text=Players (3/10)')).toBeVisible({ timeout: 10000 });
         const playerListText = await page.locator('.players-list ul').textContent();
         expect(playerListText).toContain('Player1');
         expect(playerListText).toContain('Player2');
