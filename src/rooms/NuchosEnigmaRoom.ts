@@ -136,6 +136,10 @@ export class NuchosEnigmaRoom extends Room<GameState> {
 
   onJoin(client: Client, options: any) {
     console.log(client.sessionId, "joined room", this.state.roomCode, "with name:", options.name);
+    console.log("Current players before join:", this.state.players.size);
+    Array.from(this.state.players.values()).forEach(p => {
+      console.log("  - Existing player:", p.name, p.sessionId);
+    });
     
     // Create player when they join (always in lobby phase when joining)
     if (options.name) {
@@ -145,12 +149,22 @@ export class NuchosEnigmaRoom extends Room<GameState> {
       this.state.players.set(client.sessionId, player);
       
       console.log("Player added:", player.name, "Total players:", this.state.players.size);
+      console.log("All players after join:");
+      Array.from(this.state.players.values()).forEach(p => {
+        console.log("  - Player:", p.name, p.sessionId);
+      });
       
-      // Broadcast player joined message
-      this.broadcast("playerJoined", { 
+      // Send full player list to the newly joined client
+      this.send(client, "playerListUpdate", {
         playerCount: this.state.players.size,
         players: Array.from(this.state.players.values()).map(p => ({ id: p.sessionId, name: p.name }))
       });
+      
+      // Broadcast player joined message to all other clients
+      this.broadcast("playerJoined", { 
+        playerCount: this.state.players.size,
+        players: Array.from(this.state.players.values()).map(p => ({ id: p.sessionId, name: p.name }))
+      }, { except: client });
     }
   }
 

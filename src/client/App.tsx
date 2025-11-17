@@ -119,6 +119,19 @@ function App() {
         }, 100);
       });
 
+      room.onMessage('playerListUpdate', (message) => {
+        console.log('Player list update received:', message);
+        console.log('Players in message:', message.players);
+        // Force state update with the received player list
+        setTimeout(() => {
+          if (room.state) {
+            console.log('Updating state from playerListUpdate, players:', room.state.players?.size);
+            setGameState(room.state);
+            setUpdateTrigger(prev => prev + 1);
+          }
+        }, 50);
+      });
+
       room.onMessage('questionAdvanced', (message) => {
         console.log('Question advanced:', message);
       });
@@ -165,10 +178,31 @@ function App() {
         console.log('Created/joined room:', newRoom.roomId, 'Code:', newRoom.state.roomCode);
       }
       console.log('Room state players:', newRoom.state?.players?.size || 0);
+      if (newRoom.state?.players) {
+        console.log('Players in room state:');
+        Array.from(newRoom.state.players.values()).forEach(p => {
+          console.log('  - Player:', p.name, p.sessionId);
+        });
+      }
       setRoom(newRoom);
       setGameState(newRoom.state);
       setPlayerName(name);
       setSessionId(newRoom.sessionId);
+      
+      // Wait a bit for state to fully sync, then refresh
+      setTimeout(() => {
+        if (newRoom.state) {
+          console.log('State after join delay - Players:', newRoom.state.players?.size || 0);
+          if (newRoom.state.players) {
+            console.log('Players after delay:');
+            Array.from(newRoom.state.players.values()).forEach(p => {
+              console.log('  - Player:', p.name, p.sessionId);
+            });
+          }
+          setGameState(newRoom.state);
+          setUpdateTrigger(prev => prev + 1);
+        }
+      }, 300);
     } catch (error) {
       console.error('Error joining room:', error);
       alert('Failed to join room. Please try again.');

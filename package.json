@@ -13,7 +13,7 @@
     "build": "npm run clean && tsc",
     "build:client": "vite build",
     "clean": "rimraf build",
-    "test": "mocha -r tsx test/**_test.ts --exit --timeout 15000",
+    "test": "mocha -r tsx 'test/**/*.{test,test.ts,_test.ts}' --exit --timeout 15000",
     "dev": "concurrently \"npm run start\" \"npm run start:client\""
   },
   "author": "",
