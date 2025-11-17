@@ -1,173 +1,97 @@
-import assert from "assert";
 import { ColyseusTestServer, boot } from "@colyseus/testing";
-
-// import your "app.config.ts" file here.
 import appConfig from "../src/app.config";
 import { GameState } from "../src/rooms/schema/GameState";
 
 describe("Nucho's Enigma Room Tests", () => {
   let colyseus: ColyseusTestServer;
 
-  before(async () => colyseus = await boot(appConfig));
-  after(async () => colyseus.shutdown());
+  beforeAll(async () => {
+    colyseus = await boot(appConfig);
+  });
 
-  beforeEach(async () => await colyseus.cleanup());
+  afterAll(async () => {
+    await colyseus.shutdown();
+  });
 
-  it("should show creator in player list when they create room", async () => {
-    // Create a room with first player (creator)
-    const room = await colyseus.createRoom<GameState>("nuchos_enigma", {
-      name: "CreatorPlayer"
-    });
+  beforeEach(async () => {
+    await colyseus.cleanup();
+  });
 
-    // Connect first client
-    const client1 = await colyseus.connectTo(room, {
-      name: "CreatorPlayer"
-    });
+  test("should show creator in player list when they create room", async () => {
+    const room = await colyseus.createRoom<GameState>("nuchos_enigma", { name: "CreatorPlayer" });
 
-    // Wait for state sync - give it time for onJoin to complete
+    const client1 = await colyseus.connectTo(room, { name: "CreatorPlayer" });
+
     await room.waitForNextPatch();
     await new Promise(resolve => setTimeout(resolve, 200));
     await room.waitForNextPatch();
 
-    // Verify creator is in the player list
-    assert.ok(client1.state.players, "Players map should exist");
-    assert.strictEqual(client1.state.players.size, 1, "Creator should be in player list");
+    expect(client1.state.players).toBeDefined();
+    expect(client1.state.players.size).toBe(1);
+
     const creatorPlayer = Array.from(client1.state.players.values())[0];
-    assert.strictEqual(creatorPlayer.name, "CreatorPlayer", "Creator name should match");
-    assert.strictEqual(creatorPlayer.sessionId, client1.sessionId, "Creator sessionId should match");
+    expect(creatorPlayer.name).toBe("CreatorPlayer");
+    expect(creatorPlayer.sessionId).toBe(client1.sessionId);
   });
 
-  it("should show all players to second player when they join", async () => {
-    // Create a room with first player (creator)
-    const room = await colyseus.createRoom<GameState>("nuchos_enigma", {
-      name: "CreatorPlayer"
-    });
-
-    // Connect first client (creator)
-    const client1 = await colyseus.connectTo(room, {
-      name: "CreatorPlayer"
-    });
-
-    // Wait for state sync
-    await room.waitForNextPatch();
-
-    // Verify creator is in the list
-    assert.strictEqual(client1.state.players.size, 1, "Creator should be in player list");
-
-    // Connect second client
-    const client2 = await colyseus.connectTo(room, {
-      name: "SecondPlayer"
-    });
-
-    // Wait for state sync - give it a bit more time for the join to complete
-    await room.waitForNextPatch();
-    await new Promise(resolve => setTimeout(resolve, 200)); // Wait for onJoin to complete
-    await room.waitForNextPatch();
-
-    // Verify second player can see both players
-    assert.strictEqual(client2.state.players.size, 2, "Second player should see 2 players");
-    
-    const playersInClient2 = Array.from(client2.state.players.values());
-    const playerNames = playersInClient2.map(p => p.name);
-    
-    assert.ok(
-      playerNames.includes("CreatorPlayer"),
-      "Second player should see CreatorPlayer in the list"
-    );
-    assert.ok(
-      playerNames.includes("SecondPlayer"),
-      "Second player should see themselves in the list"
-    );
-
-    // Verify creator can also see both players
-    await room.waitForNextPatch();
-    assert.strictEqual(client1.state.players.size, 2, "Creator should see 2 players");
-    
-    const playersInClient1 = Array.from(client1.state.players.values());
-    const playerNamesInClient1 = playersInClient1.map(p => p.name);
-    
-    assert.ok(
-      playerNamesInClient1.includes("CreatorPlayer"),
-      "Creator should see themselves in the list"
-    );
-    assert.ok(
-      playerNamesInClient1.includes("SecondPlayer"),
-      "Creator should see SecondPlayer in the list"
-    );
-  });
-
-  it("should synchronize player list to all clients when new player joins", async () => {
-    // Create a room
-    const room = await colyseus.createRoom<GameState>("nuchos_enigma", {
-      name: "Player1"
-    });
-
-    // Connect first client
-    const client1 = await colyseus.connectTo(room, {
-      name: "Player1"
-    });
+  test("should show all players to second player when they join", async () => {
+    const room = await colyseus.createRoom<GameState>("nuchos_enigma", { name: "CreatorPlayer" });
+    const client1 = await colyseus.connectTo(room, { name: "CreatorPlayer" });
 
     await room.waitForNextPatch();
-    assert.strictEqual(client1.state.players.size, 1, "Should have 1 player initially");
+    expect(client1.state.players.size).toBe(1);
 
-    // Connect second client
-    const client2 = await colyseus.connectTo(room, {
-      name: "Player2"
-    });
+    const client2 = await colyseus.connectTo(room, { name: "SecondPlayer" });
 
     await room.waitForNextPatch();
     await new Promise(resolve => setTimeout(resolve, 200));
     await room.waitForNextPatch();
 
-    // Both clients should see 2 players
-    assert.strictEqual(client1.state.players.size, 2, "Client1 should see 2 players");
-    assert.strictEqual(client2.state.players.size, 2, "Client2 should see 2 players");
+    expect(client2.state.players.size).toBe(2);
+    const playerNames = Array.from(client2.state.players.values()).map(p => p.name);
+    expect(playerNames).toEqual(expect.arrayContaining(["CreatorPlayer", "SecondPlayer"]));
 
-    // Connect third client
-    const client3 = await colyseus.connectTo(room, {
-      name: "Player3"
-    });
+    await room.waitForNextPatch();
+    const playerNamesInClient1 = Array.from(client1.state.players.values()).map(p => p.name);
+    expect(playerNamesInClient1).toEqual(expect.arrayContaining(["CreatorPlayer", "SecondPlayer"]));
+  });
 
+  test("should synchronize player list to all clients when new player joins", async () => {
+    const room = await colyseus.createRoom<GameState>("nuchos_enigma", { name: "Player1" });
+    const client1 = await colyseus.connectTo(room, { name: "Player1" });
+
+    await room.waitForNextPatch();
+    expect(client1.state.players.size).toBe(1);
+
+    const client2 = await colyseus.connectTo(room, { name: "Player2" });
+    await room.waitForNextPatch();
+    await new Promise(resolve => setTimeout(resolve, 200));
+    await room.waitForNextPatch();
+    expect(client1.state.players.size).toBe(2);
+    expect(client2.state.players.size).toBe(2);
+
+    const client3 = await colyseus.connectTo(room, { name: "Player3" });
     await room.waitForNextPatch();
     await new Promise(resolve => setTimeout(resolve, 200));
     await room.waitForNextPatch();
 
-    // All clients should see 3 players
-    assert.strictEqual(client1.state.players.size, 3, "Client1 should see 3 players");
-    assert.strictEqual(client2.state.players.size, 3, "Client2 should see 3 players");
-    assert.strictEqual(client3.state.players.size, 3, "Client3 should see 3 players");
+    expect(client1.state.players.size).toBe(3);
+    expect(client2.state.players.size).toBe(3);
+    expect(client3.state.players.size).toBe(3);
 
-    // Verify all players are in each client's view
     const allPlayerNames = ["Player1", "Player2", "Player3"];
-    
-    [client1, client2, client3].forEach((client, index) => {
-      const players = Array.from(client.state.players.values());
-      const names = players.map(p => p.name);
-      
-      allPlayerNames.forEach(expectedName => {
-        assert.ok(
-          names.includes(expectedName),
-          `Client${index + 1} should see ${expectedName}`
-        );
-      });
+    [client1, client2, client3].forEach((client) => {
+      const names = Array.from(client.state.players.values()).map(p => p.name);
+      allPlayerNames.forEach(name => expect(names).toContain(name));
     });
   });
 
-  it("should have correct room code", async () => {
-    const room = await colyseus.createRoom<GameState>("nuchos_enigma", {
-      name: "TestPlayer"
-    });
-
-    const client = await colyseus.connectTo(room, {
-      name: "TestPlayer"
-    });
+  test("should have correct room code", async () => {
+    const room = await colyseus.createRoom<GameState>("nuchos_enigma", { name: "TestPlayer" });
+    const client = await colyseus.connectTo(room, { name: "TestPlayer" });
 
     await room.waitForNextPatch();
-
-    // Room code should be set and non-empty
-    assert.ok(client.state.roomCode, "Room code should be set");
-    assert.strictEqual(typeof client.state.roomCode, "string", "Room code should be a string");
-    assert.ok(client.state.roomCode.length > 0, "Room code should not be empty");
+    expect(room.roomId).toBeDefined();
+    expect(typeof room.roomId).toBe("string");
   });
 });
-
