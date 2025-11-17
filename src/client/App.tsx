@@ -31,14 +31,20 @@ function App() {
       pollInterval = setInterval(() => {
         if (room.state && room.state.players) {
           const currentCount = room.state.players.size;
-          if (currentCount !== lastPlayerCount) {
+          // Get current sessionId from the room or state
+          const currentSessionId = room.sessionId;
+          const currentPlayerExists = currentSessionId && room.state.players.has(currentSessionId);
+          
+          // Update if count changed OR if current player is missing from list (and we have a sessionId)
+          if (currentCount !== lastPlayerCount || (currentSessionId && !currentPlayerExists && currentCount > 0)) {
             console.log('Player count changed via polling:', lastPlayerCount, '->', currentCount);
+            console.log('Current player exists:', currentPlayerExists, 'SessionId:', currentSessionId);
             lastPlayerCount = currentCount;
             setGameState(room.state);
             setUpdateTrigger(prev => prev + 1);
           }
         }
-      }, 500); // Check every 500ms
+      }, 300); // Check every 300ms for faster updates
       
       // Listen for state changes
       room.onStateChange((state) => {
@@ -99,14 +105,18 @@ function App() {
 
       room.onMessage('playerJoined', (message) => {
         console.log('Player joined message:', message);
+        console.log('Message players:', message.players);
         // Force state update when player joins - use setTimeout to ensure state is updated
         setTimeout(() => {
           if (room.state) {
             console.log('Forcing state update after playerJoined, players:', room.state.players?.size);
+            // Check if current player is in the list
+            const currentPlayerInList = room.state.players?.get(sessionId);
+            console.log('Current player in state:', currentPlayerInList?.name);
             setGameState(room.state);
             setUpdateTrigger(prev => prev + 1);
           }
-        }, 50);
+        }, 100);
       });
 
       room.onMessage('questionAdvanced', (message) => {
@@ -172,11 +182,24 @@ function App() {
       });
       console.log('Room created:', newRoom.roomId, 'State:', newRoom.state);
       console.log('Room code:', newRoom.state?.roomCode);
-      console.log('Players:', newRoom.state?.players?.size || 0);
+      console.log('Initial players:', newRoom.state?.players?.size || 0);
+      
       setRoom(newRoom);
-      setGameState(newRoom.state);
       setPlayerName(name);
       setSessionId(newRoom.sessionId);
+      
+      // Wait a bit for onJoin to complete and state to sync
+      setTimeout(() => {
+        if (newRoom.state) {
+          console.log('State after delay - Players:', newRoom.state.players?.size || 0);
+          setGameState(newRoom.state);
+          // Force an update trigger
+          setUpdateTrigger(prev => prev + 1);
+        }
+      }, 200);
+      
+      // Also set initial state immediately
+      setGameState(newRoom.state);
     } catch (error) {
       console.error('Error creating room:', error);
       alert('Failed to create room. Please try again.');

@@ -12,7 +12,17 @@ interface LobbyProps {
 }
 
 const Lobby: React.FC<LobbyProps> = ({ onJoinRoom, onCreateRoom, room, gameState, sessionId, updateTrigger }) => {
-  const [name, setName] = useState('');
+  // Generate random name on component mount
+  const generateRandomName = () => {
+    const adjectives = ['Cool', 'Swift', 'Brave', 'Clever', 'Wise', 'Bold', 'Quick', 'Smart', 'Sharp', 'Bright', 'Fast', 'Strong', 'Calm', 'Wild', 'Silent'];
+    const nouns = ['Tiger', 'Eagle', 'Wolf', 'Fox', 'Lion', 'Bear', 'Hawk', 'Falcon', 'Panther', 'Jaguar', 'Raven', 'Phoenix', 'Dragon', 'Shark', 'Cobra'];
+    const adjective = adjectives[Math.floor(Math.random() * adjectives.length)];
+    const noun = nouns[Math.floor(Math.random() * nouns.length)];
+    const number = Math.floor(Math.random() * 1000);
+    return `${adjective}${noun}${number}`;
+  };
+
+  const [name, setName] = useState(() => generateRandomName());
   const [roomCode, setRoomCode] = useState('');
 
   if (room && gameState) {
@@ -85,13 +95,24 @@ const Lobby: React.FC<LobbyProps> = ({ onJoinRoom, onCreateRoom, room, gameState
         <p className="subtitle">A multiplayer social deduction trivia game</p>
         
         <div className="input-group">
-          <input
-            type="text"
-            placeholder="Enter your name"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            maxLength={20}
-          />
+          <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+            <input
+              type="text"
+              placeholder="Enter your name"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              maxLength={20}
+              style={{ flex: 1 }}
+            />
+            <button
+              type="button"
+              onClick={() => setName(generateRandomName())}
+              className="btn-random-name"
+              title="Generate random name"
+            >
+              🎲
+            </button>
+          </div>
         </div>
 
         <div className="lobby-actions">
@@ -115,14 +136,15 @@ const Lobby: React.FC<LobbyProps> = ({ onJoinRoom, onCreateRoom, room, gameState
 
           <div className="action-section">
             <h3>Join Room</h3>
-            <input
-              type="text"
-              placeholder="Enter room code"
-              value={roomCode}
-              onChange={(e) => setRoomCode(e.target.value.toUpperCase())}
-              maxLength={5}
-              style={{ marginBottom: '10px' }}
-            />
+            <div className="input-group">
+              <input
+                type="text"
+                placeholder="Enter room code"
+                value={roomCode}
+                onChange={(e) => setRoomCode(e.target.value.toUpperCase())}
+                maxLength={5}
+              />
+            </div>
             <button
               className="btn btn-secondary"
               onClick={() => {
