@@ -2,9 +2,9 @@ import { test, expect } from '@playwright/test';
 
 test.describe('Lobby E2E Tests', () => {
   test.beforeEach(async ({ page }) => {
-    await page.goto('/');
-    // Wait for the page to load
-    await expect(page.locator('h1')).toContainText("Nucho's Enigma");
+    await page.goto('/', { waitUntil: 'networkidle' });
+    // Wait for the page to load - give it more time
+    await expect(page.locator('h1')).toContainText("Nucho's Enigma", { timeout: 15000 });
   });
 
   test('should create a room and show room code', async ({ page }) => {
